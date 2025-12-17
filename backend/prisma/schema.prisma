@@ -1,0 +1,98 @@
+// Prisma Schema for NotebookLM Audio Clone
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model (optional - for future authentication)
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  documents Document[]
+
+  @@map("users")
+}
+
+// PDF Document model
+model Document {
+  id               String   @id @default(uuid())
+  userId           String?  @map("user_id")
+  originalFilename String   @map("original_filename")
+  filePath         String   @map("file_path")
+  fileSize         Int      @map("file_size")
+  pageCount        Int?     @map("page_count")
+  extractedText    String?  @map("extracted_text") @db.Text
+  status           DocumentStatus @default(UPLOADED)
+  errorMessage     String?  @map("error_message") @db.Text
+  uploadedAt       DateTime @default(now()) @map("uploaded_at")
+  processedAt      DateTime? @map("processed_at")
+
+  user             User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scripts          Script[]
+  audioFiles       AudioFile[]
+
+  @@map("documents")
+}
+
+// Generated conversational script
+model Script {
+  id                String   @id @default(uuid())
+  documentId        String   @map("document_id")
+  title             String
+  content           String   @db.Text // JSON stringified conversation
+  host1Name         String   @default("Alex") @map("host1_name")
+  host2Name         String   @default("Jordan") @map("host2_name")
+  estimatedDuration Int?     @map("estimated_duration") // in seconds
+  wordCount         Int?     @map("word_count")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  document          Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  audioFiles        AudioFile[]
+
+  @@map("scripts")
+}
+
+// Generated audio file
+model AudioFile {
+  id         String      @id @default(uuid())
+  scriptId   String      @map("script_id")
+  documentId String      @map("document_id")
+  audioPath  String      @map("audio_path")
+  audioUrl   String?     @map("audio_url")
+  duration   Int?        // in seconds
+  fileSize   Int?        @map("file_size")
+  format     String      @default("mp3")
+  status     AudioStatus @default(GENERATING)
+  createdAt  DateTime    @default(now()) @map("created_at")
+  completedAt DateTime?  @map("completed_at")
+
+  script     Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("audio_files")
+}
+
+// Enums
+enum DocumentStatus {
+  UPLOADED
+  EXTRACTING_TEXT
+  GENERATING_SCRIPT
+  GENERATING_AUDIO
+  COMPLETED
+  FAILED
+}
+
+enum AudioStatus {
+  GENERATING
+  COMPLETED
+  FAILED
+}
